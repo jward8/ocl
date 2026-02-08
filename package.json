@@ -2,10 +2,18 @@
   "name": "ocl",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.ts"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
+    "dotenv": "^17.2.4"
+  }
 }

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=kvlvkjifhfvzvyeafgcx"
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "ctx7sk-ed19c58c-1526-4923-8d70-8ac4360cd7fb"
+      }
+    }
+  }
+}

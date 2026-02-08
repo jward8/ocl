@@ -1,0 +1,68 @@
+{
+    "stats": [
+        {
+            "name": "Christian",
+            "gamesPlayed": 1,
+            "history": [-1, 0, 1, 1, 0, 1, 0, 0],
+            "points": 1,
+            "victoryPoints": 5,
+            "averagePlacement": 4.0
+        },
+        {
+            "name": "Cody",
+            "gamesPlayed": 1,
+            "history": [0, -1, 0, 0, 1, 0, 1, 1],
+            "points": 1,
+            "victoryPoints": 4,
+            "averagePlacement": 4
+        },
+        {
+            "name": "Derek",
+            "gamesPlayed": 1,
+            "history": [1, 0, -1, 1, 0, 1, 0, 0],
+            "points": 3,
+            "victoryPoints": 7,
+            "averagePlacement": 3.0
+        },
+        {
+            "name": "Henry",
+            "gamesPlayed": 1,
+            "history": [1, 0, 1, -1, 0, 1, 0, 0],
+            "points": 7,
+            "victoryPoints": 10,
+            "averagePlacement": 1.0
+        },
+        {
+            "name": "Jack",
+            "gamesPlayed": 1,
+            "history": [0, 1, 0, 0, -1, 0, 1, 1],
+            "points": 3,
+            "victoryPoints": 5,
+            "averagePlacement": 3
+        },
+        {
+            "name": "Jacob",
+            "gamesPlayed": 1,
+            "history": [1, 0, 1, 1, 0, -1, 0, 0],
+            "points": 5,
+            "victoryPoints": 9,
+            "averagePlacement": 2.0
+        },
+        {
+            "name": "Justin",
+            "gamesPlayed": 1,
+            "history": [0, 1, 0, 0, 1, 0, -1, 1],
+            "points": 5,
+            "victoryPoints": 6,
+            "averagePlacement": 2
+        },
+        {
+            "name": "Nick",
+            "gamesPlayed": 1,
+            "history": [0, 1, 0, 0, 1, 0, 1, -1],
+            "points": 7,
+            "victoryPoints": 10,
+            "averagePlacement": 1
+        }
+    ]
+}
