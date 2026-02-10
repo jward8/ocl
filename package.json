@@ -5,7 +5,8 @@
   "main": "index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.ts"
+    "generate": "npx tsx src/index.ts",
+    "add-game": "npx tsx src/index.ts add-game"
   },
   "author": "",
   "license": "ISC",
