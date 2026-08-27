@@ -118,7 +118,7 @@ function calculatePlacementPoints(
     const forfeitPlacement = nonForfeitedCount + 1;
     for (let i = 0; i < playerCount; i++) {
         if (forfeited[i]) {
-            points[i] = 0;
+            points[i] = -1;
             placements[i] = forfeitPlacement;
         }
     }
