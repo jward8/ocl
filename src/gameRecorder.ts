@@ -8,7 +8,7 @@ const PLACEMENT_POINTS_3 = [7, 5, 3];
 async function fetchPlayers(): Promise<Player[]> {
     const { data, error } = await supabase
         .from("players")
-        .select("*")
+        .select("id, name")
         .order("name");
 
     if (error) {
@@ -16,10 +16,7 @@ async function fetchPlayers(): Promise<Player[]> {
         process.exit(1);
     }
 
-    return data.map((row: any) => ({
-        ...row,
-        average_placement: Number(row.average_placement),
-    }));
+    return data;
 }
 
 async function selectPlayers(allPlayers: Player[]): Promise<Player[]> {
@@ -41,11 +38,11 @@ async function promptVictoryPoints(selected: Player[]): Promise<number[]> {
     const scores: number[] = [];
     for (const player of selected) {
         const answer = await input({
-            message: `VP score for ${player.name}:`,
+            message: `VP score for ${player.name} (-1 for forfeit):`,
             validate(val) {
                 const n = Number(val);
-                if (isNaN(n) || !Number.isInteger(n) || n < 2 || n > 11) {
-                    return "Enter an integer between 2 and 11.";
+                if (isNaN(n) || !Number.isInteger(n) || n < -1 || n === 0 || n === 1 || n > 11) {
+                    return "Enter an integer between 2 and 11, or -1 for a forfeit.";
                 }
                 return true;
             },
@@ -63,18 +60,29 @@ async function promptVictoryPoints(selected: Player[]): Promise<number[]> {
  *
  * Ties share the average of the positions they span.
  * No ties for 1st allowed.
+ *
+ * Forfeited players (score === -1) are always ranked below non-forfeited
+ * players, receive last-place placement, and earn 0 placement points.
  */
 function calculatePlacementPoints(
     scores: number[],
+    forfeited: boolean[],
     playerCount: number
 ): { points: number[]; placements: number[] } {
+    const nonForfeitedCount = forfeited.filter((f) => !f).length;
+    if (nonForfeitedCount === 0) {
+        throw new Error("At least one player must not forfeit.");
+    }
+
     const placementPoints =
         playerCount === 3 ? PLACEMENT_POINTS_3 : PLACEMENT_POINTS_4;
 
-    const indexed = scores.map((score, i) => ({ score, i }));
+    const indexed = scores
+        .map((score, i) => ({ score, i, forfeited: forfeited[i] }))
+        .filter((entry) => !entry.forfeited);
     indexed.sort((a, b) => b.score - a.score);
 
-    if (indexed[0].score === indexed[1].score) {
+    if (indexed.length >= 2 && indexed[0].score === indexed[1].score) {
         throw new Error("Two players cannot tie for 1st place.");
     }
 
@@ -82,10 +90,10 @@ function calculatePlacementPoints(
     const placements = new Array(playerCount).fill(0);
 
     let pos = 0;
-    while (pos < playerCount) {
+    while (pos < indexed.length) {
         let tieEnd = pos + 1;
         while (
-            tieEnd < playerCount &&
+            tieEnd < indexed.length &&
             indexed[tieEnd].score === indexed[pos].score
         ) {
             tieEnd++;
@@ -105,6 +113,14 @@ function calculatePlacementPoints(
         }
 
         pos = tieEnd;
+    }
+
+    const forfeitPlacement = nonForfeitedCount + 1;
+    for (let i = 0; i < playerCount; i++) {
+        if (forfeited[i]) {
+            points[i] = 0;
+            placements[i] = forfeitPlacement;
+        }
     }
 
     return { points, placements };
@@ -151,6 +167,7 @@ function displayGameSummary(
     scores: number[],
     points: number[],
     placements: number[],
+    forfeited: boolean[],
     largestArmy: string | null,
     longestRoad: string | null,
     playedAt: string
@@ -163,6 +180,7 @@ function displayGameSummary(
         score: scores[i],
         pts: points[i],
         placement: placements[i],
+        forfeited: forfeited[i],
     }));
     indexed.sort((a, b) => a.placement - b.placement);
 
@@ -175,8 +193,11 @@ function displayGameSummary(
                   : entry.placement === 3
                     ? "rd"
                     : "th";
+        const scoreLabel = entry.forfeited
+            ? "Forfeit"
+            : `${entry.score} VP`;
         console.log(
-            `  ${entry.placement}${suffix}: ${entry.player.name} — ${entry.score} VP — ${entry.pts} pts`
+            `  ${entry.placement}${suffix}: ${entry.player.name} — ${scoreLabel} — ${entry.pts} pts`
         );
     }
 
@@ -191,54 +212,6 @@ function displayGameSummary(
     console.log();
 }
 
-async function updatePlayerStats(
-    selected: Player[],
-    allPlayers: Player[],
-    scores: number[],
-    points: number[],
-    placements: number[]
-) {
-    const playerIndexMap = new Map<string, number>();
-    allPlayers.forEach((p, i) => playerIndexMap.set(p.id, i));
-
-    for (let i = 0; i < selected.length; i++) {
-        const player = selected[i];
-
-        const newGamesPlayed = player.games_played + 1;
-        const newVictoryPoints = player.victory_points + scores[i];
-        const newPoints = player.points + points[i];
-        const newAvgPlacement =
-            (player.average_placement * player.games_played + placements[i]) /
-            newGamesPlayed;
-
-        const newHistory = [...player.history];
-        for (let j = 0; j < selected.length; j++) {
-            if (j === i) continue;
-            const opponentIdx = playerIndexMap.get(selected[j].id)!;
-            newHistory[opponentIdx] += 1;
-        }
-
-        const { error: updateError } = await supabase
-            .from("players")
-            .update({
-                games_played: newGamesPlayed,
-                victory_points: newVictoryPoints,
-                points: newPoints,
-                average_placement: newAvgPlacement,
-                history: newHistory,
-            })
-            .eq("id", player.id);
-
-        if (updateError) {
-            console.error(
-                `Error updating ${player.name}:`,
-                updateError.message
-            );
-            process.exit(1);
-        }
-    }
-}
-
 export async function recordGame() {
     const allPlayers = await fetchPlayers();
 
@@ -246,64 +219,66 @@ export async function recordGame() {
     const selected = await selectPlayers(allPlayers);
     console.log(`\nSelected: ${selected.map((p) => p.name).join(", ")}\n`);
 
-    // Get VP scores
-    const scores = await promptVictoryPoints(selected);
-
-    // Validate no tie for 1st
-    const sortedScores = [...scores].sort((a, b) => b - a);
-    if (sortedScores[0] === sortedScores[1]) {
-        console.error("Error: Two players cannot tie for 1st place.");
-        return;
-    }
-
-    // Calculate placements and points
-    const { points, placements } = calculatePlacementPoints(
-        scores,
-        selected.length
+    // Get VP scores (-1 means forfeit)
+    const rawScores = await promptVictoryPoints(selected);
+    const forfeited = rawScores.map((score) => score === -1);
+    const scores = rawScores.map((score, i) =>
+        forfeited[i] ? 0 : score
     );
 
-    // Bonus holders
-    const largestArmy = await promptBonusHolder(selected, "Largest Army");
-    const longestRoad = await promptBonusHolder(selected, "Longest Road");
+    try {
+        // Calculate placements and points
+        const { points, placements } = calculatePlacementPoints(
+            scores,
+            forfeited,
+            selected.length
+        );
 
-    // Date played
-    const playedAt = await promptPlayedAt();
+        // Bonus holders
+        const largestArmy = await promptBonusHolder(selected, "Largest Army");
+        const longestRoad = await promptBonusHolder(selected, "Longest Road");
 
-    // Summary
-    displayGameSummary(
-        selected,
-        scores,
-        points,
-        placements,
-        largestArmy,
-        longestRoad,
-        playedAt
-    );
+        // Date played
+        const playedAt = await promptPlayedAt();
 
-    // Confirm
-    const shouldSave = await confirm({ message: "Save this game?" });
-    if (!shouldSave) {
-        console.log("Game discarded.");
-        return;
+        // Summary
+        displayGameSummary(
+            selected,
+            scores,
+            points,
+            placements,
+            forfeited,
+            largestArmy,
+            longestRoad,
+            playedAt
+        );
+
+        // Confirm
+        const shouldSave = await confirm({ message: "Save this game?" });
+        if (!shouldSave) {
+            console.log("Game discarded.");
+            return;
+        }
+
+        // Save atomically via RPC
+        const { error } = await supabase.rpc("record_game", {
+            p_player_ids: selected.map((p) => p.id),
+            p_scores: scores,
+            p_placements: placements,
+            p_placement_points: points,
+            p_largest_army: largestArmy,
+            p_longest_road: longestRoad,
+            p_played_at: playedAt,
+            p_forfeited: forfeited,
+        });
+
+        if (error) {
+            console.error("Error saving game:", error.message);
+            process.exit(1);
+        }
+
+        console.log("Game saved successfully!");
+    } catch (err: any) {
+        console.error(`Error: ${err.message}`);
     }
-
-    // Insert game row
-    const { error: gameError } = await supabase.from("games").insert({
-        players: selected.map((p) => p.id),
-        scores,
-        placements,
-        largest_army: largestArmy,
-        longest_road: longestRoad,
-        played_at: playedAt,
-    });
-
-    if (gameError) {
-        console.error("Error inserting game:", gameError.message);
-        process.exit(1);
-    }
-
-    // Update player stats
-    await updatePlayerStats(selected, allPlayers, scores, points, placements);
-
-    console.log("Game saved successfully!");
 }
