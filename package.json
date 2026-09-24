@@ -7,12 +7,15 @@
     "start": "npx tsx src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "generate": "npx tsx src/index.ts",
-    "add-game": "npx tsx src/index.ts add-game"
+    "add-game": "npx tsx src/index.ts add-game",
+    "typecheck": "npx tsc --noEmit"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "tsx": "^4.21.0"
+    "supabase": "^2.109.1",
+    "tsx": "^4.21.0",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "@inquirer/prompts": "^6.0.1",

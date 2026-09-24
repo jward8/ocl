@@ -1,17 +1,32 @@
-import { Player } from "./types";
+import { Player, PlayerPairing, PairingLookup } from "./types";
+
+function pairingKey(a: string, b: string): string {
+    return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+export function buildPairingLookup(pairings: PlayerPairing[]): PairingLookup {
+    const lookup: PairingLookup = new Map();
+    for (const p of pairings) {
+        lookup.set(pairingKey(p.player_a_id, p.player_b_id), p.games_together);
+    }
+    return lookup;
+}
+
+function getGamesTogether(lookup: PairingLookup, a: string, b: string): number {
+    return lookup.get(pairingKey(a, b)) ?? 0;
+}
 
 /**
- * Sum history values for all 6 pairwise combinations within a 4-player group.
- * Lower score = fresher matchups (fewer past games between these players).
+ * Sum games played together for all pairwise combinations within a group.
+ * Lower score = fresher matchups.
  */
-function groupPairScore(players: Player[], groupIndices: number[]): number {
+function groupPairScore<T extends Player>(players: T[], groupIndices: number[], lookup: PairingLookup): number {
     let score = 0;
     for (let i = 0; i < groupIndices.length; i++) {
         for (let j = i + 1; j < groupIndices.length; j++) {
-            const a = groupIndices[i];
-            const b = groupIndices[j];
-            score += players[a].history[b];
-            score += players[b].history[a];
+            const a = players[groupIndices[i]].id;
+            const b = players[groupIndices[j]].id;
+            score += getGamesTogether(lookup, a, b);
         }
     }
     return score;
@@ -47,18 +62,43 @@ function generateAllSplits(n: number): [number[], number[]][] {
     return splits;
 }
 
+export interface ScoredMatchup<T extends Player = Player> {
+    group1: T[];
+    group2: T[];
+    score: number;
+    isBest: boolean;
+}
+
+/**
+ * Return all possible splits sorted by score ascending, with isBest flagged.
+ */
+export function getAllMatchupScores<T extends Player>(players: T[], lookup: PairingLookup): ScoredMatchup<T>[] {
+    const splits = generateAllSplits(players.length);
+
+    const scored = splits.map(([g1, g2]) => ({
+        group1: g1.map((i) => players[i]),
+        group2: g2.map((i) => players[i]),
+        score: groupPairScore(players, g1, lookup) + groupPairScore(players, g2, lookup),
+    }));
+
+    scored.sort((a, b) => a.score - b.score);
+    const minScore = scored[0].score;
+
+    return scored.map((s) => ({ ...s, isBest: s.score === minScore }));
+}
+
 /**
  * Score every possible split of 8 players into two groups of 4.
  * Pick randomly among ties at the minimum score.
  */
-export function generateMatchups(players: Player[]): [Player[], Player[]] {
+export function generateMatchups<T extends Player>(players: T[], lookup: PairingLookup): [T[], T[]] {
     const splits = generateAllSplits(players.length);
 
     let minScore = Infinity;
     let bestSplits: [number[], number[]][] = [];
 
     for (const [g1, g2] of splits) {
-        const score = groupPairScore(players, g1) + groupPairScore(players, g2);
+        const score = groupPairScore(players, g1, lookup) + groupPairScore(players, g2, lookup);
         if (score < minScore) {
             minScore = score;
             bestSplits = [[g1, g2]];
