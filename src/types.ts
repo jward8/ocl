@@ -18,3 +18,20 @@ export type PlayerPairing = {
 };
 
 export type PairingLookup = Map<string, number>;
+
+export type Game = {
+    id: string;
+    created_at: string;
+    played_at: string | null;
+    largest_army: string | null;
+    longest_road: string | null;
+};
+
+export type GamePlayerRow = {
+    game_id: string;
+    player_id: string;
+    victory_points: number;
+    placement: number;
+    placement_points: number;
+    forfeited: boolean;
+};

@@ -1,9 +1,10 @@
 import { select, input } from "@inquirer/prompts";
 import { supabase } from "./supabaseClient";
 import { Player, PlayerStats, PlayerPairing } from "./types";
-import { displayRecords, displayMatchups, displayAllMatchupScores } from "./display";
+import { displayRecords, displayMatchups, displayAllMatchupScores, displayGroupPlayChart, displayBonusWinners, displayRivals, displayHistoricPositions } from "./display";
 import { generateMatchups, getAllMatchupScores, buildPairingLookup } from "./matchmaking";
 import { recordGame } from "./gameRecorder";
+import { fetchGames, fetchGamePlayerRows, buildGroupPlayMatrix, countBonusHolders, computeRivals, computeHistoricPositions } from "./stats";
 
 const BANNER = `
   ██████╗  ██████╗██╗
@@ -122,6 +123,85 @@ async function recordGameAction() {
     await waitForEnter();
 }
 
+async function viewGroupPlayChart() {
+    const players = (await fetchPlayers()).sort((a, b) => a.name.localeCompare(b.name));
+    const pairings = await fetchPairings();
+    displayGroupPlayChart(players, buildGroupPlayMatrix(players, pairings));
+    await waitForEnter();
+}
+
+async function viewBonusWinners() {
+    const players = await fetchPlayers();
+    const games = await fetchGames();
+    const { largestArmy, longestRoad } = countBonusHolders(games);
+    displayBonusWinners(players, largestArmy, longestRoad);
+    await waitForEnter();
+}
+
+async function viewRivals() {
+    const players = await fetchPlayers();
+    const rows = await fetchGamePlayerRows();
+    displayRivals(computeRivals(rows, players), players);
+    await waitForEnter();
+}
+
+async function viewHistoricPositions() {
+    const players = await fetchPlayers();
+    const games = await fetchGames();
+    const rows = await fetchGamePlayerRows();
+
+    const target = await select({
+        message: "Whose historic positions?",
+        choices: [...players]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((p) => ({ name: p.name, value: p })),
+    });
+
+    displayHistoricPositions(target, computeHistoricPositions(games, rows, players, target.id));
+    await waitForEnter();
+}
+
+async function runStatsMenu() {
+    while (true) {
+        console.clear();
+        console.log(BANNER);
+
+        const action = await select({
+            message: "What stats would you like to see?",
+            choices: [
+                { name: "Player Stats", value: "player-stats" },
+                { name: "Group Play Chart", value: "group-play" },
+                { name: "Largest Army & Longest Road", value: "bonus" },
+                { name: "Rivals", value: "rivals" },
+                { name: "Historic Positions", value: "historic" },
+                { name: "Back", value: "back" },
+            ],
+        });
+
+        console.clear();
+
+        switch (action) {
+            case "player-stats":
+                await viewPlayerStats();
+                break;
+            case "group-play":
+                await viewGroupPlayChart();
+                break;
+            case "bonus":
+                await viewBonusWinners();
+                break;
+            case "rivals":
+                await viewRivals();
+                break;
+            case "historic":
+                await viewHistoricPositions();
+                break;
+            case "back":
+                return;
+        }
+    }
+}
+
 export async function runMenu() {
     while (true) {
         console.clear();
@@ -130,8 +210,8 @@ export async function runMenu() {
         const action = await select({
             message: "What would you like to do?",
             choices: [
-                { name: "View Player Stats", value: "stats" },
                 { name: "View Leaderboard", value: "leaderboard" },
+                { name: "View Stats", value: "stats" },
                 { name: "Record Game Results", value: "record" },
                 { name: "Generate Matchups", value: "matchups" },
                 { name: "View All Matchup Scores", value: "all-scores" },
@@ -142,11 +222,11 @@ export async function runMenu() {
         console.clear();
 
         switch (action) {
-            case "stats":
-                await viewPlayerStats();
-                break;
             case "leaderboard":
                 await viewLeaderboard();
+                break;
+            case "stats":
+                await runStatsMenu();
                 break;
             case "record":
                 await recordGameAction();
